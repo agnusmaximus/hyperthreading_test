@@ -98,6 +98,7 @@ int main(void) {
     double t_logical = logical_core_matrix_multiply(N_WORK);
     double gflops_phys = (N_WORK * get_num_physical_cores() / 1e9) / t_phys;
     double gflops_logical = (N_WORK * get_num_logical_cores() / 1e9) / t_logical;
+
     cout << "t_phys: " << t_phys << " t_logical: " << t_logical << endl;
     cout << "gflops_phys: " << gflops_phys << " gflops_logical: " << gflops_logical << endl;
 
