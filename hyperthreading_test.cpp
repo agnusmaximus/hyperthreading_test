@@ -1,5 +1,6 @@
 #include <iostream>
 #include <omp.h>
+#include <chrono>
 #include <hwloc.h>
 
 #define N_WORK ((long long int)1000000000)
