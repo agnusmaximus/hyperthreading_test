@@ -74,8 +74,8 @@ double logical_core_matrix_multiply(int n_work) {
 
 #pragma omp parallel
     {
-	int physical_core = omp_get_thread_num() / get_num_physical_cores();
-	int logical_core = omp_get_thread_num() % get_num_physical_cores();
+	int physical_core = omp_get_thread_num() % get_num_physical_cores();
+	int logical_core = omp_get_thread_num() / get_num_physical_cores();
 
 	pin_to_core(physical_core, logical_core);
 	int sum = 0;
