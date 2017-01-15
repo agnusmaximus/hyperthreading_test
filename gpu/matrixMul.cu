@@ -532,7 +532,7 @@ int matrixMultiplyOnePerSM(int argc, char **argv, int block_size, dim3 &dimsA, d
     dim3 grid(dimsB.x / threads.x, dimsA.y / threads.y);
     char *device_name, *host_name =  "MatrixMulOnePerSM";
     cudaMalloc(&device_name, sizeof(char) * strlen(host_name) + 1);
-    cudaMemcpy(device_name, host_name, strlen(host_name), cudaMemcpyHostToDevice);
+    cudaMemcpy(device_name, host_name, strlen(host_name)+1, cudaMemcpyHostToDevice);
 
     // Performs warmup operation using matrixMul CUDA kernel
     for (int i = 0; i < num_sm; i++) {
@@ -753,7 +753,7 @@ int matrixMultiplyTwoPerSM(int argc, char **argv, int block_size, dim3 &dimsA, d
     dim3 grid(dimsB.x / threads.x, dimsA.y / threads.y);
     char *device_name, *host_name =  "MatrixMulTwoPerSM";
     cudaMalloc(&device_name, sizeof(char) * strlen(host_name) + 1);
-    cudaMemcpy(device_name, host_name, strlen(host_name), cudaMemcpyHostToDevice);
+    cudaMemcpy(device_name, host_name, strlen(host_name)+1, cudaMemcpyHostToDevice);    
 
     // Performs warmup operation using matrixMul CUDA kernel
     for (int i = 0; i < num_sm * 2; i++) {
@@ -916,7 +916,8 @@ int main(int argc, char **argv)
 
 
     // Use a larger block size for Fermi and above
-    int block_size = (deviceProp.major < 2) ? 16 : 32;
+    //int block_size = (deviceProp.major < 2) ? 16 : 32;
+    int block_size = 16;
 
     dim3 dimsA(5*2*block_size, 5*2*block_size, 1);
     dim3 dimsB(5*4*block_size, 5*2*block_size, 1);
