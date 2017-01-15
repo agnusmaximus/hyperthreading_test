@@ -31,6 +31,8 @@ def get_sm_times(fname):
         for sm_id, times in sm_id_and_times.items():
             for i, (start,end) in enumerate(times):
                 data[name][sm_id][i] = (start-min_start_time, end-min_start_time)
+
+    print(data)
     return data, n_bars    
 
 def plot_sm_timeline(fname):
@@ -38,19 +40,20 @@ def plot_sm_timeline(fname):
     base_index = 0
     min_time, max_time = float("inf"), -1
     color=iter(cm.rainbow(np.linspace(0,1,n_bars)))
-    linewidth = 5
-    increments = linewidth + 100
+    linewidth = 3
+    increments = linewidth + 20
 
     cmap = plt.get_cmap('gnuplot')
     colors = [cmap(i) for i in np.linspace(0, 1, n_bars)]
     index = 0
     handles, labels = [], []
 
+
     for name, sm_id_and_times in data.items():
         for sm_id, times in sm_id_and_times.items():
             start_times = [x[0] for x in times]
             end_times = [x[1] for x in times]
-            label = "%s_%d" % (name, sm_id)
+            label = name
             handle = plt.hlines([base_index + x * increments for x in range(len(times))], start_times, end_times, linewidth=linewidth, label=label, color=colors[index])
             handles.append(handle)
             labels.append(label)
@@ -59,6 +62,8 @@ def plot_sm_timeline(fname):
             base_index += increments * len(times) + 5
             index += 1
         base_index += increments * 3
+
+    plt.tight_layout()
         
     plt.ylim([-increments*3, base_index+increments*3])
     plt.title("SM_Timeline")
