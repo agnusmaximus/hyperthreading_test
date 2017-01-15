@@ -266,15 +266,19 @@ int matrixMultiply(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dim
 
     // Performs warmup operation using matrixMul CUDA kernel
     if (block_size == 16)
-    {
-      //matrixMulCUDA<16><<< grid, threads >>>(d_C, d_A, d_B, dimsA.x, dimsB.x);
-      matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
-    }
+      {
+	//matrixMulCUDA<16><<< grid, threads >>>(d_C, d_A, d_B, dimsA.x, dimsB.x);
+	matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
+      }
+    else if (block_size == 8) 
+      {
+	matrixMulCUDASingleBlock<8><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
+      }
     else
-    {
-      //matrixMulCUDA<32><<< grid, threads >>>(d_C, d_A, d_B, dimsA.x, dimsB.x);
-      matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
-    }
+      {
+	//matrixMulCUDA<32><<< grid, threads >>>(d_C, d_A, d_B, dimsA.x, dimsB.x);
+	matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
+      }
 
     cudaDeviceSynchronize();
 
@@ -315,6 +319,10 @@ int matrixMultiply(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dim
         {
 	  matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
         }
+	else if (block_size == 8) 
+	  {
+	    matrixMulCUDASingleBlock<8><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
+	  }
         else
         {
 	  matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
@@ -365,6 +373,10 @@ int matrixMultiply(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dim
     if (block_size == 16)
       {
 	matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
+      }
+    else if (block_size == 8) 
+      {
+	matrixMulCUDASingleBlock<8><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
       }
     else
       {
@@ -540,11 +552,16 @@ int matrixMultiplyOnePerSM(int argc, char **argv, int block_size, dim3 &dimsA, d
 	{
 	  matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, 0, device_name);
 	}
+      else if (block_size == 8) 
+	{
+	matrixMulCUDASingleBlock<8><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, 0, device_name);
+	}
       else
 	{
 	  matrixMulCUDASingleBlock<32><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, 0, device_name);
-	
-	}}
+	  
+      }
+    }
 
     cudaDeviceSynchronize();
 
@@ -585,6 +602,10 @@ int matrixMultiplyOnePerSM(int argc, char **argv, int block_size, dim3 &dimsA, d
         if (block_size == 16)
 	  {
 	    matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
+	  }
+	else if (block_size == 8) 
+	  {
+	    matrixMulCUDASingleBlock<8><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
 	  }
         else
 	  {
@@ -807,6 +828,10 @@ int matrixMultiplyTwoPerSM(int argc, char **argv, int block_size, dim3 &dimsA, d
 	  {
 	    matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
 	  }
+        else if (block_size == 8)
+	  {
+	    matrixMulCUDASingleBlock<8><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
+	  }
         else
 	  {
 	    matrixMulCUDASingleBlock<32><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
@@ -917,7 +942,7 @@ int main(int argc, char **argv)
 
     // Use a larger block size for Fermi and above
     //int block_size = (deviceProp.major < 2) ? 16 : 32;
-    int block_size = 16;
+    int block_size = 8;
 
     dim3 dimsA(5*2*block_size, 5*2*block_size, 1);
     dim3 dimsB(5*4*block_size, 5*2*block_size, 1);
@@ -953,6 +978,7 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    matrixMultiply(argc, argv, block_size, dimsA, dimsB);
     int matrix_result = matrixMultiplyOnePerSM(argc, argv, block_size, dimsA, dimsB);
     matrix_result = matrixMultiplyTwoPerSM(argc, argv, block_size, dimsA, dimsB);
 

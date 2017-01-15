@@ -1,0 +1,14 @@
+import matplotlib.pyplot as plt
+import sys
+import os
+
+def get_sm_times(fname):
+    
+
+def plot_sm_timeline():
+    pass
+
+if __name__=="__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python plot_sm_timeline.py f_name")
+    plot_sm_timeline(sys.argv[1])
