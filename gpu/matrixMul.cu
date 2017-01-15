@@ -43,14 +43,21 @@ static __device__ __inline__ int __mysmid(){
 
 
 template <int BLOCK_SIZE> __global__ void
-matrixMulCUDASingleBlock(float *C, float *A, float *B, int hA, int wA, int wB) 
+matrixMulCUDASingleBlock(float *C, float *A, float *B, int hA, int wA, int wB, 
+			 int should_profile, char *name) 
 {
 
   // Thread index
   int tx = threadIdx.x;
   int ty = threadIdx.y;
 
-  //printf("%d %d My SM: %d\n", tx, ty, __mysmid());
+  long long int start_time, end_time;
+
+  if (should_profile) {
+    if (tx == 0 && ty == 0) {
+      start_time = clock64();
+    }
+  }
 
   for (int x_a = 0; x_a < wA; x_a += BLOCK_SIZE) {
     for (int y_a = 0; y_a < hA; y_a += BLOCK_SIZE) {
@@ -73,6 +80,14 @@ matrixMulCUDASingleBlock(float *C, float *A, float *B, int hA, int wA, int wB)
 	C[c + wB * ty + tx] += Csub;
 	__syncthreads();
       }
+    }
+  }
+
+  if (should_profile) {
+    if (tx == 0 && ty == 0) {
+      end_time = clock64();
+
+      printf("- %d %s_%d_%d_%d %lld %lld\n", __mysmid(), name, hA, wA, wB, start_time, end_time);
     }
   }
 }
@@ -245,23 +260,21 @@ int matrixMultiply(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dim
     // Setup execution parameters
     dim3 threads(block_size, block_size);
     dim3 grid(dimsB.x / threads.x, dimsA.y / threads.y);
-
-    // Create and start timer
-    printf("Computing result using CUDA Kernel...\n");
+    char *device_name, *host_name =  "MatrixMulOnePerSM";
+    cudaMalloc(&device_name, sizeof(char) * strlen(host_name) + 1);
+    cudaMemcpy(device_name, host_name, strlen(host_name), cudaMemcpyHostToDevice);
 
     // Performs warmup operation using matrixMul CUDA kernel
     if (block_size == 16)
     {
       //matrixMulCUDA<16><<< grid, threads >>>(d_C, d_A, d_B, dimsA.x, dimsB.x);
-      matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x);
+      matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
     }
     else
     {
       //matrixMulCUDA<32><<< grid, threads >>>(d_C, d_A, d_B, dimsA.x, dimsB.x);
-      matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x);
+      matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
     }
-
-    printf("done\n");
 
     cudaDeviceSynchronize();
 
@@ -300,11 +313,11 @@ int matrixMultiply(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dim
     {
         if (block_size == 16)
         {
-	  matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x);
+	  matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
         }
         else
         {
-	  matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x);
+	  matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
         }
     }
 
@@ -351,11 +364,11 @@ int matrixMultiply(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dim
 
     if (block_size == 16)
       {
-	matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x);
+	matrixMulCUDASingleBlock<16><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
       }
     else
       {
-	matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x);
+	matrixMulCUDASingleBlock<32><<<1, threads>>>(d_C, d_A, d_B, dimsA.y, dimsA.x, dimsB.x, 0, device_name);
       }
     
     // Copy result from device to host
@@ -420,7 +433,7 @@ int matrixMultiply(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dim
 /**
  * Run a simple test of matrix multiplication using CUDA on every SM
  */
-int matrixMultiplyPerSM(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dimsB)
+int matrixMultiplyOnePerSM(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dimsB)
 {
     // Allocate host memory for matrices A and B
     unsigned int size_A = dimsA.x * dimsA.y;
@@ -517,23 +530,21 @@ int matrixMultiplyPerSM(int argc, char **argv, int block_size, dim3 &dimsA, dim3
     // Setup execution parameters
     dim3 threads(block_size, block_size);
     dim3 grid(dimsB.x / threads.x, dimsA.y / threads.y);
-
-    // Create and start timer
-    printf("Computing result using CUDA Kernel...\n");
+    char *device_name, *host_name =  "MatrixMulOnePerSM";
+    cudaMalloc(&device_name, sizeof(char) * strlen(host_name) + 1);
+    cudaMemcpy(device_name, host_name, strlen(host_name), cudaMemcpyHostToDevice);
 
     // Performs warmup operation using matrixMul CUDA kernel
     for (int i = 0; i < num_sm; i++) {
       if (block_size == 16)
 	{
-	  matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x);
+	  matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, 0, device_name);
 	}
       else
 	{
-	  matrixMulCUDASingleBlock<32><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x);
+	  matrixMulCUDASingleBlock<32><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, 0, device_name);
 	
 	}}
-
-    printf("done\n");
 
     cudaDeviceSynchronize();
 
@@ -573,11 +584,11 @@ int matrixMultiplyPerSM(int argc, char **argv, int block_size, dim3 &dimsA, dim3
       for (int i = 0; i < num_sm; i++) {
         if (block_size == 16)
 	  {
-	    matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x);
+	    matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
 	  }
         else
 	  {
-	    matrixMulCUDASingleBlock<32><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x);
+	    matrixMulCUDASingleBlock<32><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
 	  }
       }
     }
@@ -641,12 +652,231 @@ int matrixMultiplyPerSM(int argc, char **argv, int block_size, dim3 &dimsA, dim3
 }
 
 /**
+ * Run a simple test of matrix multiplication using CUDA on every SM
+ */
+int matrixMultiplyTwoPerSM(int argc, char **argv, int block_size, dim3 &dimsA, dim3 &dimsB)
+{
+    // Allocate host memory for matrices A and B
+    unsigned int size_A = dimsA.x * dimsA.y;
+    unsigned int mem_size_A = sizeof(float) * size_A;
+    float *h_A = (float *)malloc(mem_size_A);
+    unsigned int size_B = dimsB.x * dimsB.y;
+    unsigned int mem_size_B = sizeof(float) * size_B;
+    float *h_B = (float *)malloc(mem_size_B);
+
+    // Initialize host memory
+    const float valB = 0.01f;
+    constantInit(h_A, size_A, 1.0f);
+    constantInit(h_B, size_B, valB);
+
+    // Get number of SMs
+    struct cudaDeviceProp devProp;
+    cudaGetDeviceProperties(&devProp, 0);
+    int num_sm = devProp.multiProcessorCount;
+    printf("Number of SMs: %d\n", num_sm);
+
+    // Allocate device memory
+    float **d_A, **d_B, **d_C;
+    d_A = (float **)malloc(sizeof(float *) * num_sm * 2);
+    d_B = (float **)malloc(sizeof(float *) * num_sm * 2);
+    d_C = (float **)malloc(sizeof(float *) * num_sm * 2);    
+    cudaStream_t *streams;
+    streams = (cudaStream_t *)malloc(sizeof(cudaStream_t) * num_sm * 2);
+    
+    // Allocate host matrix C
+    dim3 dimsC(dimsB.x, dimsA.y, 1);
+    unsigned int mem_size_C = dimsC.x * dimsC.y * sizeof(float);
+    float *h_C = (float *) malloc(mem_size_C);
+
+    if (h_C == NULL)
+    {
+        fprintf(stderr, "Failed to allocate host matrix C!\n");
+        exit(EXIT_FAILURE);
+    }
+
+    cudaError_t error;
+
+    for (int i = 0; i < num_sm * 2; i++) {
+      error = cudaStreamCreate(&streams[i]);
+      if (error != cudaSuccess) {
+	printf("cudaStreamCreate returned error code %d, line(%d)\n", error, __LINE__);
+	exit(EXIT_FAILURE);
+      }
+
+      error = cudaMalloc((void **) &d_A[i], mem_size_A);
+      
+      if (error != cudaSuccess)
+	{
+	  printf("cudaMalloc d_A returned error code %d, line(%d)\n", error, __LINE__);
+	  exit(EXIT_FAILURE);
+	}
+      
+      error = cudaMalloc((void **) &d_B[i], mem_size_B);
+
+      if (error != cudaSuccess)
+	{
+	  printf("cudaMalloc d_B returned error code %d, line(%d)\n", error, __LINE__);
+	  exit(EXIT_FAILURE);
+	}
+      
+      error = cudaMalloc((void **) &d_C[i], mem_size_C);
+      
+      if (error != cudaSuccess)
+	{
+	  printf("cudaMalloc d_C returned error code %d, line(%d)\n", error, __LINE__);
+	  exit(EXIT_FAILURE);
+	}
+      
+      cudaMemset(d_C, 0, mem_size_C);
+
+      // copy host memory to device
+      error = cudaMemcpy(d_A[i], h_A, mem_size_A, cudaMemcpyHostToDevice);
+    
+      
+      if (error != cudaSuccess)
+	{
+	  printf("cudaMemcpy (d_A,h_A) returned error code %d, line(%d)\n", error, __LINE__);
+	  exit(EXIT_FAILURE);
+	}
+
+      error = cudaMemcpy(d_B[i], h_B, mem_size_B, cudaMemcpyHostToDevice);
+      
+      if (error != cudaSuccess)
+	{
+	  printf("cudaMemcpy (d_B,h_B) returned error code %d, line(%d)\n", error, __LINE__);
+	  exit(EXIT_FAILURE);
+	}
+    }
+
+    // Setup execution parameters
+    dim3 threads(block_size, block_size);
+    dim3 grid(dimsB.x / threads.x, dimsA.y / threads.y);
+    char *device_name, *host_name =  "MatrixMulTwoPerSM";
+    cudaMalloc(&device_name, sizeof(char) * strlen(host_name) + 1);
+    cudaMemcpy(device_name, host_name, strlen(host_name), cudaMemcpyHostToDevice);
+
+    // Performs warmup operation using matrixMul CUDA kernel
+    for (int i = 0; i < num_sm * 2; i++) {
+      if (block_size == 16)
+	{
+	  matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, 0, device_name);
+	}
+      else
+	{
+	  matrixMulCUDASingleBlock<32><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, 0, device_name);
+	
+	}}
+
+    cudaDeviceSynchronize();
+
+    // Allocate CUDA events that we'll use for timing
+    cudaEvent_t start;
+    error = cudaEventCreate(&start);
+
+    if (error != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to create start event (error code %s)!\n", cudaGetErrorString(error));
+        exit(EXIT_FAILURE);
+    }
+
+    cudaEvent_t stop;
+    error = cudaEventCreate(&stop);
+
+    if (error != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to create stop event (error code %s)!\n", cudaGetErrorString(error));
+        exit(EXIT_FAILURE);
+    }
+
+    // Record the start event
+    error = cudaEventRecord(start, NULL);
+
+    if (error != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to record start event (error code %s)!\n", cudaGetErrorString(error));
+        exit(EXIT_FAILURE);
+    }
+
+    // Execute the kernel
+    int nIter = 300;
+
+    for (int j = 0; j < nIter; j++)
+    {
+      for (int i = 0; i < num_sm * 2; i++) {
+        if (block_size == 16)
+	  {
+	    matrixMulCUDASingleBlock<16><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
+	  }
+        else
+	  {
+	    matrixMulCUDASingleBlock<32><<<1, threads, 0, streams[i]>>>(d_C[i], d_A[i], d_B[i], dimsA.y, dimsA.x, dimsB.x, j==0, device_name);
+	  }
+      }
+    }
+
+    // Record the stop event
+    error = cudaEventRecord(stop, NULL);
+
+    if (error != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to record stop event (error code %s)!\n", cudaGetErrorString(error));
+        exit(EXIT_FAILURE);
+    }
+
+    // Wait for the stop event to complete
+    error = cudaEventSynchronize(stop);
+
+    if (error != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to synchronize on the stop event (error code %s)!\n", cudaGetErrorString(error));
+        exit(EXIT_FAILURE);
+    }
+
+    float msecTotal = 0.0f;
+    error = cudaEventElapsedTime(&msecTotal, start, stop);
+
+    if (error != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to get time elapsed between events (error code %s)!\n", cudaGetErrorString(error));
+        exit(EXIT_FAILURE);
+    }
+
+    // Compute and print the performance
+    float msecPerMatrixMul = msecTotal / nIter;
+    double flopsPerMatrixMul = 2.0 * (double)dimsA.x * (double)dimsA.y * (double)dimsB.x * num_sm * 2;
+    double gigaFlops = (flopsPerMatrixMul * 1.0e-9f) / (msecPerMatrixMul / 1000.0f);
+    printf(
+        "Performance= %.2f GFlop/s, Time= %.3f msec, Size= %.0f Ops, WorkgroupSize= %u threads/block\n",
+        gigaFlops,
+        msecPerMatrixMul,
+        flopsPerMatrixMul,
+        threads.x * threads.y);
+
+    // Clean up memory
+    free(h_A);
+    free(h_B);
+    free(h_C);
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+
+    printf("\nNOTE: The CUDA Samples are not meant for performance measurements. Results may vary when GPU Boost is enabled.\n");
+
+    // cudaDeviceReset causes the driver to clean up all state. While
+    // not mandatory in normal operation, it is good practice.  It is also
+    // needed to ensure correct operation when the application is being
+    // profiled. Calling cudaDeviceReset causes all profile data to be
+    // flushed before the application exits
+    cudaDeviceReset();
+
+    return EXIT_SUCCESS;
+}
+
+/**
  * Program main
  */
 int main(int argc, char **argv)
 {
-    printf("[Matrix Multiply Using CUDA] - Starting...\n");
-
     if (checkCmdLineFlag(argc, (const char **)argv, "help") ||
         checkCmdLineFlag(argc, (const char **)argv, "?"))
     {
@@ -684,14 +914,6 @@ int main(int argc, char **argv)
         exit(EXIT_SUCCESS);
     }
 
-    if (error != cudaSuccess)
-    {
-        printf("cudaGetDeviceProperties returned error code %d, line(%d)\n", error, __LINE__);
-    }
-    else
-    {
-        printf("GPU Device %d: \"%s\" with compute capability %d.%d\n\n", devID, deviceProp.name, deviceProp.major, deviceProp.minor);
-    }
 
     // Use a larger block size for Fermi and above
     int block_size = (deviceProp.major < 2) ? 16 : 32;
@@ -730,9 +952,8 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    printf("MatrixA(%d,%d), MatrixB(%d,%d)\n", dimsA.x, dimsA.y, dimsB.x, dimsB.y);
-
-    int matrix_result = matrixMultiplyPerSM(argc, argv, block_size, dimsA, dimsB);
+    int matrix_result = matrixMultiplyOnePerSM(argc, argv, block_size, dimsA, dimsB);
+    matrix_result = matrixMultiplyTwoPerSM(argc, argv, block_size, dimsA, dimsB);
 
     exit(matrix_result);
 }
