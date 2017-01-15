@@ -87,7 +87,7 @@ matrixMulCUDASingleBlock(float *C, float *A, float *B, int hA, int wA, int wB,
     if (tx == 0 && ty == 0) {
       end_time = clock64();
 
-      printf("- %d SM_%d_%s_blocksize=%d %lld %lld\n", __mysmid(), __mysmid(), name, BLOCK_SIZE, hA, wA, wB, start_time, end_time);
+      printf("- %d SM_%d_%s_nthreads=%d %lld %lld\n", __mysmid(), __mysmid(), name, BLOCK_SIZE*BLOCK_SIZE, hA, wA, wB, start_time, end_time);
     }
   }
 }
